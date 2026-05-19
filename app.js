@@ -13,6 +13,13 @@ let map;
 const markers = new Map();
 const pointsByN = new Map();
 let pulseTimer = null;
+let routeLine = null;
+
+const KUPCHINO = {
+  lat: 59.8298,
+  lon: 30.3757,
+  label: "м. Купчино"
+};
 
 function parseCsv(text) {
   const lines = text.trim().split(/\r?\n/);
@@ -96,6 +103,21 @@ function updateSelection(row) {
 
   const p = pointsByN.get(row.n);
   if (p && map) {
+    if (routeLine) {
+      map.removeLayer(routeLine);
+    }
+    routeLine = L.polyline(
+      [
+        [KUPCHINO.lat, KUPCHINO.lon],
+        [p.lat, p.lon]
+      ],
+      {
+        color: "#dc2626",
+        weight: 3,
+        opacity: 0.85,
+        dashArray: "8,6"
+      }
+    ).addTo(map);
     map.setView([p.lat, p.lon], 11, { animate: true });
     const mk = markers.get(row.n);
     if (mk) mk.openPopup();
@@ -132,7 +154,17 @@ function setupMap(points) {
   }).addTo(map);
 
   const latlngs = points.map((p) => [p.lat, p.lon]);
+  latlngs.push([KUPCHINO.lat, KUPCHINO.lon]);
   map.fitBounds(latlngs, { padding: [24, 24] });
+
+  const kupchinoMarker = L.circleMarker([KUPCHINO.lat, KUPCHINO.lon], {
+    radius: 7,
+    color: "#1d4ed8",
+    weight: 2,
+    fillColor: "#3b82f6",
+    fillOpacity: 0.95
+  }).addTo(map);
+  kupchinoMarker.bindPopup(`<b>${KUPCHINO.label}</b>`);
 
   for (const p of points) {
     pointsByN.set(Number(p.n), p);
