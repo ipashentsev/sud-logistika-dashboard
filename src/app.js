@@ -103,27 +103,33 @@ function updateSelection(row) {
 
   const p = pointsByN.get(row.n);
   if (p && map) {
-    if (routeLine) {
-      map.removeLayer(routeLine);
-    }
-    routeLine = L.polyline(
-      [
-        [KUPCHINO.lat, KUPCHINO.lon],
-        [p.lat, p.lon]
-      ],
-      {
-        color: "#dc2626",
-        weight: 3,
-        opacity: 0.85,
-        dashArray: "8,6"
-      }
-    ).addTo(map);
-    map.setView([p.lat, p.lon], 11, { animate: true });
+    drawRoadRouteTo(p);
     const mk = markers.get(row.n);
     if (mk) mk.openPopup();
   }
   refreshMarkerStyles();
   pulseSelectedMarker();
+}
+
+async function drawRoadRouteTo(point) {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${KUPCHINO.lon},${KUPCHINO.lat};${point.lon},${point.lat}?overview=full&geometries=geojson`;
+    const resp = await fetch(url);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const route = data?.routes?.[0];
+    if (!route?.geometry?.coordinates) return;
+
+    const latlngs = route.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+    if (routeLine) map.removeLayer(routeLine);
+    routeLine = L.polyline(latlngs, {
+      color: "#dc2626",
+      weight: 4,
+      opacity: 0.9
+    }).addTo(map);
+  } catch (_) {
+    // No-op: keep UX working even if routing service is unavailable.
+  }
 }
 
 function renderTable(rows) {
@@ -148,6 +154,7 @@ function filterRows(query) {
 
 function setupMap(points) {
   map = L.map("map", { zoomControl: true });
+  map.attributionControl.setPrefix(false);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 18,
     attribution: "© OpenStreetMap"
