@@ -56,21 +56,19 @@ function renderMetrics(rows) {
 }
 
 function yandexRouteUrlByRows(rows) {
-  if (rows.length <= 1) {
-    const one = rows[0];
-    const p = one ? pointsByN.get(one.n) : null;
-    const fromCoord = `${KUPCHINO.lat},${KUPCHINO.lon}`;
-    const toPoint = p ? `${p.lat},${p.lon}` : (one?.address || "");
-    const chain = [fromCoord, toPoint].join("~");
-    return `https://yandex.ru/maps/?rtext=${encodeURIComponent(chain)}&rtt=auto`;
-  }
-
-  const routePoints = [FROM_POINT, ...rows.map((r) => r.address)];
-  const chain = routePoints.join("~");
-  const viaIdx = [];
-  for (let i = 1; i < routePoints.length - 1; i += 1) viaIdx.push(i);
-  const rvia = viaIdx.length ? `&rvia=${viaIdx.join(",")}` : "";
-  return `https://yandex.ru/maps/?rtext=${encodeURIComponent(chain)}&rtt=auto${rvia}`;
+  const fromCoord = `${KUPCHINO.lat},${KUPCHINO.lon}`;
+  const usedCoordCount = new Map();
+  const toParts = rows.map((r) => {
+    const p = pointsByN.get(r.n);
+    if (!p) return r.address;
+    const key = `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`;
+    const seen = usedCoordCount.get(key) || 0;
+    usedCoordCount.set(key, seen + 1);
+    const d = seen * 0.00012;
+    return `${(p.lat + d).toFixed(6)},${(p.lon + d).toFixed(6)}`;
+  });
+  const chain = [fromCoord, ...toParts].join("~");
+  return `https://yandex.ru/maps/?mode=routes&rtext=${encodeURIComponent(chain)}&rtt=auto`;
 }
 
 function markerStyle(type) {
