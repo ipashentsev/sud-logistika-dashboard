@@ -56,10 +56,10 @@ function renderMetrics(rows) {
 }
 
 function yandexRouteUrlByRows(rows) {
-  const fromCoord = `${KUPCHINO.lon},${KUPCHINO.lat}`;
+  const fromCoord = `${KUPCHINO.lat},${KUPCHINO.lon}`;
   const toParts = rows.map((r) => {
     const p = pointsByN.get(r.n);
-    return p ? `${p.lon},${p.lat}` : r.address;
+    return p ? `${p.lat},${p.lon}` : r.address;
   });
   const routeChain = [fromCoord, ...toParts].join("~");
   return `https://yandex.ru/maps/?rtext=${encodeURIComponent(routeChain)}&rtt=auto`;
