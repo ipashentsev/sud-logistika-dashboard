@@ -103,7 +103,7 @@ function updateSelection(row) {
 
   const p = pointsByN.get(row.n);
   if (p && map) {
-    drawRoadRouteTo(p);
+    void drawRoadRouteTo(p);
     const mk = markers.get(row.n);
     if (mk) mk.openPopup();
   }
@@ -127,7 +127,7 @@ async function drawRoadRouteTo(point) {
       weight: 4,
       opacity: 0.9
     }).addTo(map);
-  } catch (_) {
+  } catch {
     // No-op: keep UX working even if routing service is unavailable.
   }
 }
@@ -212,9 +212,9 @@ async function init() {
   renderMetrics(allRows);
   renderTable(allRows);
   setupMap(points);
+  autoSelectByExactNumber();
 
   searchEl.addEventListener("input", () => {
-    renderTable(filterRows(searchEl.value));
     autoSelectByExactNumber();
     renderTable(filterRows(searchEl.value));
   });
