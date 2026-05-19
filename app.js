@@ -159,8 +159,8 @@ function autoSelectByExactNumber() {
 
 async function init() {
   const [csvText, points] = await Promise.all([
-    fetch("../data/spisok_1_87_kupchino.csv").then((r) => r.text()),
-    fetch("../data/points_1_87.json").then((r) => r.json())
+    fetch("./data/spisok_1_87_kupchino.csv").then((r) => r.text()),
+    fetch("./data/points_1_87.json").then((r) => r.json())
   ]);
 
   allRows = parseCsv(csvText);
