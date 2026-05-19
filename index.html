@@ -17,7 +17,7 @@
   <header class="topbar">
     <div>
       <h1>Логистика выездов по участкам 1-87</h1>
-      <p class="subtitle">Быстрый выбор участка, просмотр на карте и переход в Яндекс.Маршрут</p>
+      <p class="subtitle">Поиск, выбор, построение маршрута и быстрый переход в Яндекс.Карты</p>
     </div>
     <div class="metrics" id="metrics"></div>
   </header>
@@ -35,6 +35,7 @@
               <th>№</th>
               <th>Адрес</th>
               <th>Км</th>
+              <th>Маршрут</th>
             </tr>
           </thead>
           <tbody id="rows"></tbody>
@@ -47,10 +48,25 @@
       <div class="selected-card" id="selectedCard">
         <div id="selected">Участок не выбран</div>
         <div class="actions">
-          <button id="openYandex" disabled>Открыть маршрут в Яндекс.Картах</button>
+          <button id="openYandex" disabled>Открыть маршрут выбранного участка в Яндекс</button>
         </div>
-        <p class="hint">Точка отправления фиксирована: метро Купчино, Санкт-Петербург</p>
       </div>
+
+      <div class="route-plan">
+        <div class="route-plan-head">
+          <strong>План выезда</strong>
+          <span id="routeCount">Выбрано: 0/5</span>
+        </div>
+        <div id="routeList" class="route-list">Пока ничего не добавлено</div>
+        <div class="route-actions">
+          <button id="buildRoute" disabled>Построить оптимальный маршрут</button>
+          <button id="clearRoute" class="btn-light" disabled>Очистить</button>
+          <button id="openMultiYandex" class="btn-red" disabled>Открыть общий маршрут в Яндекс</button>
+        </div>
+        <div id="routeSummary" class="route-summary">Итого: -</div>
+      </div>
+
+      <p class="hint">Точка отправления фиксирована: метро Купчино, Санкт-Петербург</p>
       <div id="map"></div>
     </section>
   </main>

@@ -1,4 +1,5 @@
 const FROM_POINT = "метро Купчино, Санкт-Петербург";
+const MAX_STOPS = 5;
 
 const rowsEl = document.getElementById("rows");
 const searchEl = document.getElementById("search");
@@ -7,6 +8,13 @@ const selectedEl = document.getElementById("selected");
 const openYandexBtn = document.getElementById("openYandex");
 const selectedCard = document.getElementById("selectedCard");
 
+const routeCountEl = document.getElementById("routeCount");
+const routeListEl = document.getElementById("routeList");
+const routeSummaryEl = document.getElementById("routeSummary");
+const buildRouteBtn = document.getElementById("buildRoute");
+const clearRouteBtn = document.getElementById("clearRoute");
+const openMultiYandexBtn = document.getElementById("openMultiYandex");
+
 let allRows = [];
 let selected = null;
 let map;
@@ -14,6 +22,8 @@ const markers = new Map();
 const pointsByN = new Map();
 let pulseTimer = null;
 let routeLine = null;
+let selectedStops = [];
+let lastOptimizedRows = [];
 
 const KUPCHINO = {
   lat: 59.8298,
@@ -36,22 +46,22 @@ function parseCsv(text) {
 }
 
 function renderMetrics(rows) {
-  const total = rows.length;
   const withDistance = rows.filter((r) => Number.isFinite(r.distance));
   const avg = withDistance.length ? (withDistance.reduce((a, b) => a + b.distance, 0) / withDistance.length).toFixed(1) : "-";
   const min = withDistance.length ? Math.min(...withDistance.map((r) => r.distance)).toFixed(1) : "-";
   const max = withDistance.length ? Math.max(...withDistance.map((r) => r.distance)).toFixed(1) : "-";
 
   metricsEl.innerHTML = [
-    `Участков: <b>${total}</b>`,
+    `Участков: <b>${rows.length}</b>`,
     `Средняя дальность: <b>${avg} км</b>`,
     `Ближайший: <b>${min} км</b>`,
     `Дальний: <b>${max} км</b>`
   ].map((t) => `<div class="metric">${t}</div>`).join("");
 }
 
-function yandexRouteUrl(toAddress) {
-  return `https://yandex.ru/maps/?rtext=${encodeURIComponent(FROM_POINT)}~${encodeURIComponent(toAddress)}&rtt=auto`;
+function yandexRouteUrlByRows(rows) {
+  const addrChain = [FROM_POINT, ...rows.map((r) => r.address)].join("~");
+  return `https://yandex.ru/maps/?rtext=${encodeURIComponent(addrChain)}&rtt=auto`;
 }
 
 function markerStyle(isActive) {
@@ -78,10 +88,7 @@ function pulseSelectedMarker() {
   pulseTimer = setInterval(() => {
     tick += 1;
     const grow = tick % 2 === 1;
-    marker.setStyle({
-      ...markerStyle(true),
-      radius: grow ? 13 : 10
-    });
+    marker.setStyle({ ...markerStyle(true), radius: grow ? 13 : 10 });
     if (tick >= 6) {
       clearInterval(pulseTimer);
       pulseTimer = null;
@@ -99,11 +106,11 @@ function updateSelection(row) {
   selectedEl.textContent = `Участок №${row.n}: ${distanceLabel}. ${row.address}`;
 
   openYandexBtn.disabled = false;
-  openYandexBtn.onclick = () => window.open(yandexRouteUrl(row.address), "_blank", "noopener");
+  openYandexBtn.onclick = () => window.open(yandexRouteUrlByRows([row]), "_blank", "noopener");
 
   const p = pointsByN.get(row.n);
   if (p && map) {
-    void drawRoadRouteTo(p);
+    void drawRoadRouteTo([p]);
     const mk = markers.get(row.n);
     if (mk) mk.openPopup();
   }
@@ -111,25 +118,45 @@ function updateSelection(row) {
   pulseSelectedMarker();
 }
 
-async function drawRoadRouteTo(point) {
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${KUPCHINO.lon},${KUPCHINO.lat};${point.lon},${point.lat}?overview=full&geometries=geojson`;
-    const resp = await fetch(url);
-    if (!resp.ok) return;
-    const data = await resp.json();
-    const route = data?.routes?.[0];
-    if (!route?.geometry?.coordinates) return;
+async function fetchRoadRouteCoords(pointsSeq) {
+  if (!pointsSeq.length) return { latlngs: [], km: 0 };
+  const via = [[KUPCHINO.lat, KUPCHINO.lon], ...pointsSeq.map((p) => [p.lat, p.lon])];
+  const coords = via.map(([lat, lon]) => `${lon},${lat}`).join(";");
+  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error("routing failed");
+  const data = await resp.json();
+  const route = data?.routes?.[0];
+  if (!route?.geometry?.coordinates) throw new Error("route empty");
+  return {
+    latlngs: route.geometry.coordinates.map(([lon, lat]) => [lat, lon]),
+    km: (route.distance || 0) / 1000
+  };
+}
 
-    const latlngs = route.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+async function drawRoadRouteTo(pointsSeq) {
+  try {
+    const { latlngs } = await fetchRoadRouteCoords(pointsSeq);
     if (routeLine) map.removeLayer(routeLine);
-    routeLine = L.polyline(latlngs, {
-      color: "#dc2626",
-      weight: 4,
-      opacity: 0.9
-    }).addTo(map);
+    routeLine = L.polyline(latlngs, { color: "#dc2626", weight: 4, opacity: 0.9 }).addTo(map);
   } catch {
-    // No-op: keep UX working even if routing service is unavailable.
+    // No-op.
   }
+}
+
+function addStop(row) {
+  if (selectedStops.find((r) => r.n === row.n)) return;
+  if (selectedStops.length >= MAX_STOPS) return;
+  selectedStops.push(row);
+  renderRoutePlanner();
+  renderTable(filterRows(searchEl.value));
+}
+
+function removeStop(n) {
+  selectedStops = selectedStops.filter((r) => r.n !== n);
+  lastOptimizedRows = [];
+  renderRoutePlanner();
+  renderTable(filterRows(searchEl.value));
 }
 
 function renderTable(rows) {
@@ -137,10 +164,21 @@ function renderTable(rows) {
   for (const row of rows) {
     const tr = document.createElement("tr");
     if (selected && selected.n === row.n) tr.classList.add("active");
-    tr.innerHTML = `<td>${row.n}</td><td>${row.address}</td><td>${row.distance ?? ""}</td>`;
-    tr.addEventListener("click", () => {
+    const inRoute = selectedStops.some((r) => r.n === row.n);
+    tr.innerHTML = `
+      <td>${row.n}</td>
+      <td>${row.address}</td>
+      <td>${row.distance ?? ""}</td>
+      <td><button class="add-btn" data-add="${row.n}" ${inRoute || selectedStops.length >= MAX_STOPS ? "disabled" : ""}>${inRoute ? "Добавлен" : "+ В маршрут"}</button></td>
+    `;
+    tr.addEventListener("click", (e) => {
+      if (e.target?.matches("button[data-add]")) return;
       updateSelection(row);
       renderTable(filterRows(searchEl.value));
+    });
+    tr.querySelector("button[data-add]")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      addStop(row);
     });
     rowsEl.appendChild(tr);
   }
@@ -196,6 +234,97 @@ function autoSelectByExactNumber() {
   updateSelection(row);
 }
 
+function permutations(arr) {
+  if (arr.length <= 1) return [arr.slice()];
+  const out = [];
+  for (let i = 0; i < arr.length; i += 1) {
+    const head = arr[i];
+    const tail = [...arr.slice(0, i), ...arr.slice(i + 1)];
+    for (const p of permutations(tail)) out.push([head, ...p]);
+  }
+  return out;
+}
+
+async function distanceKmForOrder(orderRows) {
+  const pts = orderRows.map((r) => pointsByN.get(r.n)).filter(Boolean);
+  if (!pts.length) return Infinity;
+  try {
+    const { km } = await fetchRoadRouteCoords(pts);
+    return km;
+  } catch {
+    return Infinity;
+  }
+}
+
+async function buildOptimalRoute() {
+  if (!selectedStops.length) return;
+  buildRouteBtn.disabled = true;
+  routeSummaryEl.textContent = "Итого: считаем оптимальный маршрут...";
+
+  const perms = permutations(selectedStops);
+  let bestOrder = null;
+  let bestKm = Infinity;
+
+  for (const order of perms) {
+    // eslint-disable-next-line no-await-in-loop
+    const km = await distanceKmForOrder(order);
+    if (km < bestKm) {
+      bestKm = km;
+      bestOrder = order;
+    }
+  }
+
+  if (!bestOrder || !Number.isFinite(bestKm)) {
+    routeSummaryEl.textContent = "Итого: не удалось построить маршрут";
+    buildRouteBtn.disabled = false;
+    return;
+  }
+
+  lastOptimizedRows = bestOrder;
+  const pts = bestOrder.map((r) => pointsByN.get(r.n)).filter(Boolean);
+  await drawRoadRouteTo(pts);
+  routeSummaryEl.textContent = `Итого: ${bestKm.toFixed(1)} км | Порядок: ${bestOrder.map((r) => `№${r.n}`).join(" -> ")}`;
+  openMultiYandexBtn.disabled = false;
+  openMultiYandexBtn.onclick = () => window.open(yandexRouteUrlByRows(bestOrder), "_blank", "noopener");
+  buildRouteBtn.disabled = false;
+}
+
+function renderRoutePlanner() {
+  routeCountEl.textContent = `Выбрано: ${selectedStops.length}/${MAX_STOPS}`;
+  if (!selectedStops.length) {
+    routeListEl.textContent = "Пока ничего не добавлено";
+    routeSummaryEl.textContent = "Итого: -";
+    buildRouteBtn.disabled = true;
+    clearRouteBtn.disabled = true;
+    openMultiYandexBtn.disabled = true;
+    lastOptimizedRows = [];
+    return;
+  }
+
+  routeListEl.innerHTML = selectedStops
+    .map((r) => `<div>№${r.n} (${Number.isFinite(r.distance) ? `${r.distance} км` : "-"}) <button class="add-btn btn-light" data-remove="${r.n}">Убрать</button></div>`)
+    .join("");
+
+  for (const btn of routeListEl.querySelectorAll("button[data-remove]")) {
+    btn.addEventListener("click", () => removeStop(Number(btn.dataset.remove)));
+  }
+
+  buildRouteBtn.disabled = false;
+  clearRouteBtn.disabled = false;
+  openMultiYandexBtn.disabled = !lastOptimizedRows.length;
+}
+
+function clearRoutePlan() {
+  selectedStops = [];
+  lastOptimizedRows = [];
+  if (routeLine) {
+    map.removeLayer(routeLine);
+    routeLine = null;
+  }
+  renderRoutePlanner();
+  renderTable(filterRows(searchEl.value));
+}
+
 async function init() {
   const [csvText, points] = await Promise.all([
     fetch("./data/spisok_1_87_kupchino.csv").then((r) => r.text()),
@@ -209,15 +338,21 @@ async function init() {
     const fallbackAddr = pointsAddrByN.get(row.n);
     return fallbackAddr ? { ...row, address: fallbackAddr } : row;
   });
+
   renderMetrics(allRows);
   renderTable(allRows);
+  renderRoutePlanner();
   setupMap(points);
-  autoSelectByExactNumber();
 
   searchEl.addEventListener("input", () => {
     autoSelectByExactNumber();
     renderTable(filterRows(searchEl.value));
   });
+
+  buildRouteBtn.addEventListener("click", () => {
+    void buildOptimalRoute();
+  });
+  clearRouteBtn.addEventListener("click", clearRoutePlan);
 }
 
 init().catch((err) => {
