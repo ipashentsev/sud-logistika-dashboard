@@ -41,18 +41,8 @@
           <tbody id="rows"></tbody>
         </table>
       </div>
-    </section>
 
-    <section class="panel right">
-      <h2>Маршрут и карта</h2>
-      <div class="selected-card" id="selectedCard">
-        <div id="selected">Участок не выбран</div>
-        <div class="actions">
-          <button id="openYandex" disabled>Открыть маршрут выбранного участка в Яндекс</button>
-        </div>
-      </div>
-
-      <div class="route-plan compact">
+      <div class="route-plan compact under-table">
         <div class="route-plan-head">
           <strong>План выезда (до 5 участков)</strong>
           <span id="routeCount">Выбрано: 0/5</span>
@@ -64,6 +54,16 @@
           <button id="openMultiYandex" class="btn-red" disabled>Открыть общий маршрут в Яндекс</button>
         </div>
         <div id="routeSummary" class="route-summary">Итого: -</div>
+      </div>
+    </section>
+
+    <section class="panel right">
+      <h2>Маршрут и карта</h2>
+      <div class="selected-card" id="selectedCard">
+        <div id="selected">Участок не выбран</div>
+        <div class="actions">
+          <button id="openYandex" disabled>Открыть маршрут выбранного участка в Яндекс</button>
+        </div>
       </div>
 
       <p class="hint">Точка отправления фиксирована: метро Купчино, Санкт-Петербург</p>
