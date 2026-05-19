@@ -92,8 +92,14 @@ function drawOrderLabels(orderRows) {
     usedCoordCount.set(key, seen + 1);
     const [dLat, dLon] = offsets[seen % offsets.length];
     const label = L.marker([p.lat + dLat, p.lon + dLon], {
-      icon: L.divIcon({ className: "route-order-label", html: `${idx + 1}`, iconSize: [20, 20], iconAnchor: [-8, 10] }),
-      interactive: false
+      icon: L.divIcon({
+        className: "route-order-label",
+        html: `${idx + 1}`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      }),
+      interactive: false,
+      zIndexOffset: 1000
     }).addTo(map);
     orderLabelMarkers.push(label);
   });
