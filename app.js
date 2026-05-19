@@ -213,7 +213,7 @@ async function fillMissingDistances() {
   let changed = false;
   for (const row of allRows) {
     const isMissing = !Number.isFinite(row.distance);
-    const isOutlier = Number.isFinite(row.distance) && row.distance > 300;
+    const isOutlier = Number.isFinite(row.distance) && row.distance > 200;
     if (!isMissing && !isOutlier) continue;
     const p = pointsByN.get(row.n);
     if (!p) continue;
