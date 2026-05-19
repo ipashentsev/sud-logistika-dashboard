@@ -168,6 +168,30 @@ async function drawRoadRouteTo(pointsSeq) {
   }
 }
 
+async function fillMissingDistances() {
+  let changed = false;
+  for (const row of allRows) {
+    if (Number.isFinite(row.distance)) continue;
+    const p = pointsByN.get(row.n);
+    if (!p) continue;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const { km } = await fetchRoadRouteCoords([p]);
+      if (Number.isFinite(km)) {
+        row.distance = Number(km.toFixed(1));
+        changed = true;
+      }
+    } catch {
+      // Keep empty if route service is unavailable.
+    }
+  }
+  if (changed) {
+    renderMetrics(allRows);
+    renderTable(filterRows(searchEl.value));
+    renderRoutePlanner();
+  }
+}
+
 function addStop(row) {
   if (selectedStops.find((r) => r.n === row.n)) return;
   if (selectedStops.length >= MAX_STOPS) return;
@@ -368,6 +392,7 @@ async function init() {
   renderTable(allRows);
   renderRoutePlanner();
   setupMap(points);
+  void fillMissingDistances();
 
   searchEl.addEventListener("input", () => {
     autoSelectByExactNumber();
