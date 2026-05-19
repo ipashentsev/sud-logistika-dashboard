@@ -5,6 +5,7 @@ const rowsEl = document.getElementById("rows");
 const searchEl = document.getElementById("search");
 const metricsEl = document.getElementById("metrics");
 const selectedEl = document.getElementById("selected");
+const yStatusEl = document.getElementById("yStatus");
 const openYandexBtn = document.getElementById("openYandex");
 const selectedCard = document.getElementById("selectedCard");
 
@@ -69,6 +70,26 @@ function yandexRouteUrlByRows(rows) {
   });
   const chain = [fromCoord, ...toParts].join("~");
   return `https://yandex.ru/maps/?mode=routes&rtext=${encodeURIComponent(chain)}&rtt=auto`;
+}
+
+function setStatus(msg = "", kind = "") {
+  if (!yStatusEl) return;
+  yStatusEl.textContent = msg;
+  yStatusEl.classList.remove("error", "ok");
+  if (kind) yStatusEl.classList.add(kind);
+}
+
+function openUrlSafely(url) {
+  try {
+    const win = window.open(url, "_blank", "noopener");
+    if (!win) {
+      setStatus("Браузер заблокировал открытие вкладки. Разрешите pop-up для сайта.", "error");
+      return;
+    }
+    setStatus("Маршрут открыт в Яндекс.Картах.", "ok");
+  } catch {
+    setStatus("Не удалось открыть Яндекс.Карты.", "error");
+  }
 }
 
 function markerStyle(type) {
@@ -144,7 +165,7 @@ function updateSelection(row) {
   const distanceLabel = Number.isFinite(row.distance) ? `${row.distance} км` : "без данных по км";
   selectedEl.textContent = `Участок №${row.n}: ${distanceLabel}. ${row.address}`;
   openYandexBtn.disabled = false;
-  openYandexBtn.onclick = () => window.open(yandexRouteUrlByRows([row]), "_blank", "noopener");
+  openYandexBtn.onclick = () => openUrlSafely(yandexRouteUrlByRows([row]));
 
   const p = pointsByN.get(row.n);
   if (p && map) {
@@ -344,7 +365,7 @@ async function buildOptimalRoute() {
 
   routeSummaryEl.textContent = `Итого: ${bestKm.toFixed(1)} км | Порядок: ${bestOrder.map((r, i) => `${i + 1}.№${r.n}`).join(" -> ")}`;
   openMultiYandexBtn.disabled = false;
-  openMultiYandexBtn.onclick = () => window.open(yandexRouteUrlByRows(bestOrder), "_blank", "noopener");
+  openMultiYandexBtn.onclick = () => openUrlSafely(yandexRouteUrlByRows(bestOrder));
   buildRouteBtn.disabled = false;
 }
 
@@ -384,6 +405,7 @@ function clearRoutePlan() {
   refreshMarkerStyles();
   renderRoutePlanner();
   renderTable(filterRows(searchEl.value));
+  setStatus("");
 }
 
 async function init() {

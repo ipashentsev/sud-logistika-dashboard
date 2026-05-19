@@ -39,6 +39,9 @@ h2 { margin: 2px 0 10px; font-size: 20px; }
 .selected-card { border: 1px solid var(--line); border-radius: 12px; background: #fcfffe; padding: 10px; margin-bottom: 8px; }
 #selected { color: var(--muted); min-height: 22px; font-size: 13px; }
 .actions { margin-top: 8px; }
+.status-line { margin-top: 6px; min-height: 16px; font-size: 12px; color: #64748b; }
+.status-line.error { color: #b91c1c; }
+.status-line.ok { color: #0f766e; }
 button { border: none; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border-radius: 10px; padding: 9px 12px; font-weight: 700; cursor: pointer; font-size: 12px; }
 button:disabled { background: #a3aebc; cursor: not-allowed; }
 .btn-light { background: #64748b; }
