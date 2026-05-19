@@ -158,6 +158,13 @@ function pulseSelectedMarker() {
   }, 180);
 }
 
+function scrollToSelectedRow() {
+  if (!selected) return;
+  const rowEl = rowsEl.querySelector(`tr[data-n="${selected.n}"]`);
+  if (!rowEl) return;
+  rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 function updateSelection(row) {
   selected = row;
   selectedCard.style.borderColor = "#67e8f9";
@@ -176,6 +183,7 @@ function updateSelection(row) {
   drawOrderLabels(lastOptimizedRows);
   refreshMarkerStyles();
   pulseSelectedMarker();
+  requestAnimationFrame(scrollToSelectedRow);
 }
 
 async function fetchRoadRouteCoords(pointsSeq) {
@@ -251,6 +259,7 @@ function renderTable(rows) {
   rowsEl.innerHTML = "";
   for (const row of rows) {
     const tr = document.createElement("tr");
+    tr.dataset.n = String(row.n);
     if (selected && selected.n === row.n) tr.classList.add("active");
     const inRoute = selectedStops.some((r) => r.n === row.n);
     tr.innerHTML = `
