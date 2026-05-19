@@ -189,7 +189,7 @@ function renderTable(rows) {
       <td>${row.n}</td>
       <td>${row.address}</td>
       <td>${row.distance ?? ""}</td>
-      <td><button class="add-btn" data-add="${row.n}" ${inRoute || selectedStops.length >= MAX_STOPS ? "disabled" : ""}>${inRoute ? "Добавлен" : "+ В маршрут"}</button></td>
+      <td><button class="add-btn" data-add="${row.n}" ${inRoute || selectedStops.length >= MAX_STOPS ? "disabled" : ""}>${inRoute ? "✓" : "+"}</button></td>
     `;
     tr.addEventListener("click", (e) => {
       if (e.target?.matches("button[data-add]")) return;
