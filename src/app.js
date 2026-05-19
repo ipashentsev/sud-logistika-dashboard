@@ -203,6 +203,12 @@ async function init() {
   ]);
 
   allRows = parseCsv(csvText);
+  const pointsAddrByN = new Map(points.map((p) => [Number(p.n), p.addr]));
+  allRows = allRows.map((row) => {
+    if (row.address && row.address !== "[нет адреса]") return row;
+    const fallbackAddr = pointsAddrByN.get(row.n);
+    return fallbackAddr ? { ...row, address: fallbackAddr } : row;
+  });
   renderMetrics(allRows);
   renderTable(allRows);
   setupMap(points);
