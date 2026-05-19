@@ -65,8 +65,12 @@ function yandexRouteUrlByRows(rows) {
     return `https://yandex.ru/maps/?rtext=${encodeURIComponent(chain)}&rtt=auto`;
   }
 
-  const chain = [FROM_POINT, ...rows.map((r) => r.address)].join("~");
-  return `https://yandex.ru/maps/?rtext=${encodeURIComponent(chain)}&rtt=auto`;
+  const routePoints = [FROM_POINT, ...rows.map((r) => r.address)];
+  const chain = routePoints.join("~");
+  const viaIdx = [];
+  for (let i = 1; i < routePoints.length - 1; i += 1) viaIdx.push(i);
+  const rvia = viaIdx.length ? `&rvia=${viaIdx.join(",")}` : "";
+  return `https://yandex.ru/maps/?rtext=${encodeURIComponent(chain)}&rtt=auto${rvia}`;
 }
 
 function markerStyle(type) {
