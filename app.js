@@ -56,13 +56,17 @@ function renderMetrics(rows) {
 }
 
 function yandexRouteUrlByRows(rows) {
-  const fromCoord = `${KUPCHINO.lat},${KUPCHINO.lon}`;
-  const toParts = rows.map((r) => {
-    const p = pointsByN.get(r.n);
-    return p ? `${p.lat},${p.lon}` : r.address;
-  });
-  const routeChain = [fromCoord, ...toParts].join("~");
-  return `https://yandex.ru/maps/?rtext=${encodeURIComponent(routeChain)}&rtt=auto`;
+  if (rows.length <= 1) {
+    const one = rows[0];
+    const p = one ? pointsByN.get(one.n) : null;
+    const fromCoord = `${KUPCHINO.lat},${KUPCHINO.lon}`;
+    const toPoint = p ? `${p.lat},${p.lon}` : (one?.address || "");
+    const chain = [fromCoord, toPoint].join("~");
+    return `https://yandex.ru/maps/?rtext=${encodeURIComponent(chain)}&rtt=auto`;
+  }
+
+  const chain = [FROM_POINT, ...rows.map((r) => r.address)].join("~");
+  return `https://yandex.ru/maps/?rtext=${encodeURIComponent(chain)}&rtt=auto`;
 }
 
 function markerStyle(type) {
