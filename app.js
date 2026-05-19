@@ -79,10 +79,19 @@ function clearOrderLabels() {
 function drawOrderLabels(orderRows) {
   clearOrderLabels();
   if (!orderRows?.length) return;
+  const usedCoordCount = new Map();
+  const offsets = [
+    [0, 0], [0.0012, 0], [-0.0012, 0], [0, 0.0012], [0, -0.0012],
+    [0.001, 0.001], [-0.001, 0.001], [0.001, -0.001], [-0.001, -0.001]
+  ];
   orderRows.forEach((row, idx) => {
     const p = pointsByN.get(row.n);
     if (!p) return;
-    const label = L.marker([p.lat, p.lon], {
+    const key = `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`;
+    const seen = usedCoordCount.get(key) || 0;
+    usedCoordCount.set(key, seen + 1);
+    const [dLat, dLon] = offsets[seen % offsets.length];
+    const label = L.marker([p.lat + dLat, p.lon + dLon], {
       icon: L.divIcon({ className: "route-order-label", html: `${idx + 1}`, iconSize: [20, 20], iconAnchor: [-8, 10] }),
       interactive: false
     }).addTo(map);
