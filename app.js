@@ -24,12 +24,9 @@ let pulseTimer = null;
 let routeLine = null;
 let selectedStops = [];
 let lastOptimizedRows = [];
+const orderLabelMarkers = [];
 
-const KUPCHINO = {
-  lat: 59.8298,
-  lon: 30.3757,
-  label: "м. Купчино"
-};
+const KUPCHINO = { lat: 59.8298, lon: 30.3757, label: "м. Купчино" };
 
 function parseCsv(text) {
   const lines = text.trim().split(/\r?\n/);
@@ -50,7 +47,6 @@ function renderMetrics(rows) {
   const avg = withDistance.length ? (withDistance.reduce((a, b) => a + b.distance, 0) / withDistance.length).toFixed(1) : "-";
   const min = withDistance.length ? Math.min(...withDistance.map((r) => r.distance)).toFixed(1) : "-";
   const max = withDistance.length ? Math.max(...withDistance.map((r) => r.distance)).toFixed(1) : "-";
-
   metricsEl.innerHTML = [
     `Участков: <b>${rows.length}</b>`,
     `Средняя дальность: <b>${avg} км</b>`,
@@ -69,18 +65,37 @@ function yandexRouteUrlByRows(rows) {
   return `https://yandex.ru/maps/?rtext=${encodeURIComponent(routeChain)}&rtt=auto`;
 }
 
-function markerStyle(isActive) {
-  return {
-    radius: isActive ? 10 : 6,
-    color: isActive ? "#991b1b" : "#334155",
-    weight: isActive ? 2 : 1,
-    fillColor: isActive ? "#ef4444" : "#64748b",
-    fillOpacity: 1
-  };
+function markerStyle(type) {
+  if (type === "selected") return { radius: 10, color: "#991b1b", weight: 2, fillColor: "#ef4444", fillOpacity: 1 };
+  if (type === "inRoute") return { radius: 8, color: "#b45309", weight: 2, fillColor: "#f59e0b", fillOpacity: 1 };
+  return { radius: 6, color: "#334155", weight: 1, fillColor: "#64748b", fillOpacity: 1 };
+}
+
+function clearOrderLabels() {
+  for (const m of orderLabelMarkers) map.removeLayer(m);
+  orderLabelMarkers.length = 0;
+}
+
+function drawOrderLabels(orderRows) {
+  clearOrderLabels();
+  if (!orderRows?.length) return;
+  orderRows.forEach((row, idx) => {
+    const p = pointsByN.get(row.n);
+    if (!p) return;
+    const label = L.marker([p.lat, p.lon], {
+      icon: L.divIcon({ className: "route-order-label", html: `${idx + 1}`, iconSize: [20, 20], iconAnchor: [-8, 10] }),
+      interactive: false
+    }).addTo(map);
+    orderLabelMarkers.push(label);
+  });
 }
 
 function refreshMarkerStyles() {
-  for (const [n, marker] of markers) marker.setStyle(markerStyle(selected && selected.n === n));
+  for (const [n, marker] of markers) {
+    const isSelected = selected && selected.n === n;
+    const inRoute = selectedStops.some((r) => r.n === n);
+    marker.setStyle(isSelected ? markerStyle("selected") : inRoute ? markerStyle("inRoute") : markerStyle("default"));
+  }
 }
 
 function pulseSelectedMarker() {
@@ -88,16 +103,15 @@ function pulseSelectedMarker() {
   const marker = markers.get(selected.n);
   if (!marker) return;
   if (pulseTimer) clearInterval(pulseTimer);
-
   let tick = 0;
   pulseTimer = setInterval(() => {
     tick += 1;
     const grow = tick % 2 === 1;
-    marker.setStyle({ ...markerStyle(true), radius: grow ? 13 : 10 });
+    marker.setStyle({ ...markerStyle("selected"), radius: grow ? 13 : 10 });
     if (tick >= 6) {
       clearInterval(pulseTimer);
       pulseTimer = null;
-      marker.setStyle(markerStyle(true));
+      refreshMarkerStyles();
     }
   }, 180);
 }
@@ -106,10 +120,8 @@ function updateSelection(row) {
   selected = row;
   selectedCard.style.borderColor = "#67e8f9";
   selectedCard.style.boxShadow = "0 0 0 3px rgba(103, 232, 249, 0.16)";
-
   const distanceLabel = Number.isFinite(row.distance) ? `${row.distance} км` : "без данных по км";
   selectedEl.textContent = `Участок №${row.n}: ${distanceLabel}. ${row.address}`;
-
   openYandexBtn.disabled = false;
   openYandexBtn.onclick = () => window.open(yandexRouteUrlByRows([row]), "_blank", "noopener");
 
@@ -119,6 +131,7 @@ function updateSelection(row) {
     const mk = markers.get(row.n);
     if (mk) mk.openPopup();
   }
+  drawOrderLabels(lastOptimizedRows);
   refreshMarkerStyles();
   pulseSelectedMarker();
 }
@@ -133,10 +146,7 @@ async function fetchRoadRouteCoords(pointsSeq) {
   const data = await resp.json();
   const route = data?.routes?.[0];
   if (!route?.geometry?.coordinates) throw new Error("route empty");
-  return {
-    latlngs: route.geometry.coordinates.map(([lon, lat]) => [lat, lon]),
-    km: (route.distance || 0) / 1000
-  };
+  return { latlngs: route.geometry.coordinates.map(([lon, lat]) => [lat, lon]), km: (route.distance || 0) / 1000 };
 }
 
 async function drawRoadRouteTo(pointsSeq) {
@@ -153,6 +163,9 @@ function addStop(row) {
   if (selectedStops.find((r) => r.n === row.n)) return;
   if (selectedStops.length >= MAX_STOPS) return;
   selectedStops.push(row);
+  lastOptimizedRows = [];
+  clearOrderLabels();
+  refreshMarkerStyles();
   renderRoutePlanner();
   renderTable(filterRows(searchEl.value));
 }
@@ -160,6 +173,8 @@ function addStop(row) {
 function removeStop(n) {
   selectedStops = selectedStops.filter((r) => r.n !== n);
   lastOptimizedRows = [];
+  clearOrderLabels();
+  refreshMarkerStyles();
   renderRoutePlanner();
   renderTable(filterRows(searchEl.value));
 }
@@ -198,27 +213,18 @@ function filterRows(query) {
 function setupMap(points) {
   map = L.map("map", { zoomControl: true });
   map.attributionControl.setPrefix(false);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 18,
-    attribution: "© OpenStreetMap"
-  }).addTo(map);
-
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
   const latlngs = points.map((p) => [p.lat, p.lon]);
   latlngs.push([KUPCHINO.lat, KUPCHINO.lon]);
   map.fitBounds(latlngs, { padding: [24, 24] });
 
-  const kupchinoMarker = L.circleMarker([KUPCHINO.lat, KUPCHINO.lon], {
-    radius: 7,
-    color: "#1d4ed8",
-    weight: 2,
-    fillColor: "#3b82f6",
-    fillOpacity: 0.95
-  }).addTo(map);
-  kupchinoMarker.bindPopup(`<b>${KUPCHINO.label}</b>`);
+  L.circleMarker([KUPCHINO.lat, KUPCHINO.lon], {
+    radius: 7, color: "#1d4ed8", weight: 2, fillColor: "#3b82f6", fillOpacity: .95
+  }).addTo(map).bindPopup(`<b>${KUPCHINO.label}</b>`);
 
   for (const p of points) {
     pointsByN.set(Number(p.n), p);
-    const marker = L.circleMarker([p.lat, p.lon], markerStyle(false)).addTo(map);
+    const marker = L.circleMarker([p.lat, p.lon], markerStyle("default")).addTo(map);
     marker.bindPopup(`<b>Участок №${p.n}</b><br>${p.addr}`);
     marker.on("click", () => {
       const row = allRows.find((r) => r.n === Number(p.n));
@@ -288,7 +294,10 @@ async function buildOptimalRoute() {
   lastOptimizedRows = bestOrder;
   const pts = bestOrder.map((r) => pointsByN.get(r.n)).filter(Boolean);
   await drawRoadRouteTo(pts);
-  routeSummaryEl.textContent = `Итого: ${bestKm.toFixed(1)} км | Порядок: ${bestOrder.map((r) => `№${r.n}`).join(" -> ")}`;
+  drawOrderLabels(bestOrder);
+  refreshMarkerStyles();
+
+  routeSummaryEl.textContent = `Итого: ${bestKm.toFixed(1)} км | Порядок: ${bestOrder.map((r, i) => `${i + 1}.№${r.n}`).join(" -> ")}`;
   openMultiYandexBtn.disabled = false;
   openMultiYandexBtn.onclick = () => window.open(yandexRouteUrlByRows(bestOrder), "_blank", "noopener");
   buildRouteBtn.disabled = false;
@@ -307,7 +316,7 @@ function renderRoutePlanner() {
   }
 
   routeListEl.innerHTML = selectedStops
-    .map((r) => `<div>№${r.n} (${Number.isFinite(r.distance) ? `${r.distance} км` : "-"}) <button class="add-btn btn-light" data-remove="${r.n}">Убрать</button></div>`)
+    .map((r) => `<span class="route-chip">№${r.n} ${Number.isFinite(r.distance) ? `(${r.distance} км)` : ""} <button class="add-btn btn-light" data-remove="${r.n}">×</button></span>`)
     .join("");
 
   for (const btn of routeListEl.querySelectorAll("button[data-remove]")) {
@@ -326,6 +335,8 @@ function clearRoutePlan() {
     map.removeLayer(routeLine);
     routeLine = null;
   }
+  clearOrderLabels();
+  refreshMarkerStyles();
   renderRoutePlanner();
   renderTable(filterRows(searchEl.value));
 }
@@ -354,9 +365,7 @@ async function init() {
     renderTable(filterRows(searchEl.value));
   });
 
-  buildRouteBtn.addEventListener("click", () => {
-    void buildOptimalRoute();
-  });
+  buildRouteBtn.addEventListener("click", () => { void buildOptimalRoute(); });
   clearRouteBtn.addEventListener("click", clearRoutePlan);
 }
 
