@@ -60,8 +60,13 @@ function renderMetrics(rows) {
 }
 
 function yandexRouteUrlByRows(rows) {
-  const addrChain = [FROM_POINT, ...rows.map((r) => r.address)].join("~");
-  return `https://yandex.ru/maps/?rtext=${encodeURIComponent(addrChain)}&rtt=auto`;
+  const fromCoord = `${KUPCHINO.lat},${KUPCHINO.lon}`;
+  const toParts = rows.map((r) => {
+    const p = pointsByN.get(r.n);
+    return p ? `${p.lat},${p.lon}` : r.address;
+  });
+  const routeChain = [fromCoord, ...toParts].join("~");
+  return `https://yandex.ru/maps/?rtext=${encodeURIComponent(routeChain)}&rtt=auto`;
 }
 
 function markerStyle(isActive) {
